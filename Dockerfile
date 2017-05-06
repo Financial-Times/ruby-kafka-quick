@@ -1,4 +1,4 @@
-FROM ruby:alpine
+FROM ruby:2.1.10
 
 RUN gem install poseidon
 RUN gem install json
