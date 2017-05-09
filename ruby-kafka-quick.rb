@@ -8,11 +8,12 @@ require 'securerandom'
 
 def createMsg(imageSet)
   lastModified = Time.now.strftime('%Y-%m-%dT%I:%M:%S%z')
-  header = ['X-Request-Id:' + SecureRandom.uuid,
-  'Message-Timestamp:' + lastModified,
-  'Message-Id:' + SecureRandom.uuid,
-  'Message-Type:cms-content-published',
-  'Content-Type:application/json',
+  header = ['FTMSG/1.0',
+  'X-Request-Id: ' + SecureRandom.uuid,
+  'Message-Timestamp: ' + lastModified,
+  'Message-Id: ' + SecureRandom.uuid,
+  'Message-Type: cms-content-published',
+  'Content-Type: application/json',
   'Origin-System-Id: http://cmdb.ft.com/systems/methode-web-pub',
   '',
   ''].join("\n")
@@ -21,8 +22,7 @@ def createMsg(imageSet)
     :payload => imageSet,
     :lastModified => lastModified
   }
-  marshaledBody = JSON.generate(body)
-  return header + marshaledBody
+  return header + JSON.generate(body)
 end
 
 def uuid(id)
@@ -51,17 +51,17 @@ def parseMsg(m)
   return messages
 end
 
-File.open("sample-message.txt", "r") do |m|
-  parseMsg(m).each { |msg| puts msg }
-end
-
-# consumer = Poseidon::PartitionConsumer.new("methode-article-image-set-mapper", "ip-172-24-45-243.eu-west-1.compute.internal", 9092, "NativeCmsPublicationEvents", 0, :latest_offset)
-# producer = Poseidon::Producer.new(["ip-172-24-45-243.eu-west-1.compute.internal:9092"], "methode-article-image-set-mapper-producer")
-# loop do
-#   messages = consumer.fetch
-#   messages.each do |m|
-#     msgs = parseMsg(m.value.to_s)
-#     msgs.each { |msg| puts msg }
-#     producer.send_messages(msgs.map { |msg| Poseidon::MessageToSend.new("CmsPublicationEvents", msg) })
-#   end
+# File.open("sample-message.txt", "r") do |m|
+#   parseMsg(m).each { |msg| puts msg }
 # end
+
+consumer = Poseidon::PartitionConsumer.new("methode-article-image-set-mapper", "ip-172-24-45-243.eu-west-1.compute.internal", 9092, "NativeCmsPublicationEvents", 0, :latest_offset)
+producer = Poseidon::Producer.new(["ip-172-24-45-243.eu-west-1.compute.internal:9092"], "methode-article-image-set-mapper-producer")
+loop do
+  messages = consumer.fetch
+  messages.each do |m|
+    msgs = parseMsg(m.value.to_s)
+    msgs.each { |msg| puts msg }
+    producer.send_messages(msgs.map { |msg| Poseidon::MessageToSend.new("CmsPublicationEvents", msg) })
+  end
+end
