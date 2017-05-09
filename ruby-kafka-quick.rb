@@ -5,29 +5,25 @@ require "base64"
 require 'nokogiri'
 require 'digest'
 require 'securerandom'
+require 'uuidtools'
 
 def createMsg(imageSet)
-  lastModified = Time.now.strftime('%Y-%m-%dT%I:%M:%S%z')
+  lastModified = Time.now.utc.iso8601(3)
   header = ['FTMSG/1.0',
-  'X-Request-Id: ' + SecureRandom.uuid,
-  'Message-Timestamp: ' + lastModified,
   'Message-Id: ' + SecureRandom.uuid,
+  'Message-Timestamp: ' + lastModified,
   'Message-Type: cms-content-published',
-  'Content-Type: application/json',
   'Origin-System-Id: http://cmdb.ft.com/systems/methode-web-pub',
+  'Content-Type: application/json',
+  'X-Request-Id: ' + SecureRandom.uuid,
   '',
-  ''].join("\n")
+  ''].join("\r\n")
   body = {
     :contentUri => "http://methode-article-image-set-mapper.svc.ft.com/image-set/model/#{imageSet[:uuid]}",
     :payload => imageSet,
     :lastModified => lastModified
   }
   return header + JSON.generate(body)
-end
-
-def uuid(id)
-  md5s = Digest::MD5.hexdigest(id).to_s
-  return "#{md5s[0..7]}-#{md5s[8..11]}-#{md5s[12..15]}-#{md5s[16..19]}-#{md5s[20..27]}"
 end
 
 def parseMsg(m)
@@ -42,7 +38,7 @@ def parseMsg(m)
   messages = []
   imageSets.each do |xmlImageSet|
     members = Array.new
-    jsonImageSet = { :uuid => uuid(xmlImageSet['id']), :members => members }
+    jsonImageSet = { :uuid => UUIDTools::UUID.sha1_create(UUIDTools::UUID_DNS_NAMESPACE, xmlImageSet['id']).to_s, :members => members }
     members << { :uuid => xmlImageSet.at_xpath('//image-medium')['fileref'].split('=')[1] }
     members << { :uuid => xmlImageSet.at_xpath('//image-small')['fileref'].split('=')[1] }
     members << { :uuid => xmlImageSet.at_xpath('//image-large')['fileref'].split('=')[1] }
@@ -55,8 +51,8 @@ end
 #   parseMsg(m).each { |msg| puts msg }
 # end
 
-consumer = Poseidon::PartitionConsumer.new("methode-article-image-set-mapper", "ip-172-24-45-243.eu-west-1.compute.internal", 9092, "NativeCmsPublicationEvents", 0, :latest_offset)
-producer = Poseidon::Producer.new(["ip-172-24-45-243.eu-west-1.compute.internal:9092"], "methode-article-image-set-mapper-producer")
+consumer = Poseidon::PartitionConsumer.new("methode-article-image-set-mapper", "ip-172-24-11-64.eu-west-1.compute.internal", 9092, "NativeCmsPublicationEvents", 0, :latest_offset)
+producer = Poseidon::Producer.new(["ip-172-24-11-64.eu-west-1.compute.internal:9092"], "methode-article-image-set-mapper-producer")
 loop do
   messages = consumer.fetch
   messages.each do |m|
